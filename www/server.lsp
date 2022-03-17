@@ -30,16 +30,17 @@ local action = request:data("action") -- POST and GET data
 if action == "process_request" then
   local mode = request:data("mode")
 
-  local jsonstring = ""
   -- get the body of the request
-  local chunk
-  -- rawrdr() read in block / chunk
+  local jsonstring = ""
+
+  -- rawrdr() reads in block / chunk
   for data in request:rawrdr() do
     jsonstring = jsonstring .. data
   end
   -- trace("Content-Length and data length:", request:header("Content-Length"), #jsonstring)
 
   local devices = ba.json.decode(jsonstring)
+
   local newdata = app.process_request(mode, devices)
   response:json(newdata)
 
@@ -48,9 +49,9 @@ elseif action == "list_files" then
   List_files()
 
 elseif action == "save" then
-  local jsonstring = ""
   -- get the body of the request
-  local chunk
+  local jsonstring = ""
+
   for data in request:rawrdr() do
     jsonstring = jsonstring .. data
   end
