@@ -1,0 +1,202 @@
+-- Modbus TCP tester - server side
+
+-- === for lint in VS Codium,
+-- -- actual nb of lint warning: 4
+-- -- comment before realise:
+-- local trace = function(...) print(arg) end
+
+-- https://realtimelogic.com/ba/doc/?url=Modbus.html
+local mbmodule = require "modbus.client"
+
+local mb, err_conn -- The Modbus instance
+local transaction -- last sent transaction number
+
+local curr_conn = ""
+
+-- sample data: array of devices [{...}, {...}]
+--    device:
+--    [{ip: '192.168.1.100', port: '502', uid: '255', items: [{...}, {...}]}
+--       item: {addr: '111', size: '1', vtype:'word', value:'to write or result', _idDevice: 1}
+--
+-- _idDevice is an internal facilities for the callback function
+
+
+--[=[
+    method mb:rcoil(addr, len [, onresp])
+    Read coil(s) (function code 1)
+        Number addr - starting address: 0x0000 to 0xFFFF.
+        Number len - quantity of coils: 1 to 2000.
+        Function onresp - the callback function is required for asynchronous mode.
+    Returns table | nil,err - method 'rcoil' returns a Lua table with boolean (true/false) values on success and nil,err on error.
+
+    method mb:rholding(addr, len[, vtype][, onresp])
+    Read holding register(s) (function code 3)
+        Number addr - starting address: 0x0000 to 0xFFFF.
+        Number len - quantity of registers - 1 to 125 for default vtype 'word'.
+        String vtype - optional value type defaults to 'word' (16 bit size). May be one of: word, dword, float, double, or string.
+        Function onresp - the callback function is required for asynchronous mode.
+    Returns table | nil,err - method 'rholding' returns a Lua table with values on success and nil,err on error.
+]=]
+
+
+
+function process_request(mode, data)
+  -- count queue for each device
+  local queue = {}
+
+  if not mode or mode == "" then
+    mode = "read" -- 'read' or 'write'
+  end
+
+  local function process_modbus_item(device, item, idDev)
+    local ip = device.ip
+    local port = device.port
+    local uid = device.uid
+
+    local addr = item.addr
+    local size = item.size
+    local vtype = item.vtype
+    local value = item.value
+
+    if not ip or ip == "" then ip = "localhost" end
+    if not port or port == "" then port = 502 end
+    if not uid or uid == "" then uid = 255 end
+
+    if not addr or addr == "" then addr = 0 end
+    if not size or size == "" then size = 1 end
+    if not vtype or vtype == "" then vtype = 'word' end
+
+    if mode == 'write' then
+      if vtype == 'bit' then
+        if not value or value == "" then value = false end
+      elseif vtype == 'word' then
+        if not value or value == "" then value = 0 end
+      end
+    end
+
+    local coils = size // 16 -- TODO!: check!!!
+
+    local new_conn = device.ip .. '_' .. device.port .. '_' .. device.uid
+
+    if not (new_conn == curr_conn) and mb then
+      if mb:connected() then
+        mb:close()
+      end
+    end
+
+    if not (new_conn == curr_conn) and ( not mb or not mb:connected() )
+    then
+      trace("connecting: ", ip, port, uid)
+      -- TODO!: check if async must be true or false
+      mb, err_conn = mbmodule.connect(ip, {async=false, port=port, uid=uid})
+
+      if err_conn then
+        trace("err_conn: ", err_conn, ip, port, uid)
+        device.online = false
+      end
+
+      if mb then
+        device.online = true
+      end
+
+      curr_conn = new_conn
+    end
+
+    -- Callback function Modbus
+    -- defined inside process_modbus_item function, let's access to its local variable
+    local function mycallback(data_mb, err_mb, _transaction, _mb)
+      assert(transaction == _transaction) -- integrity check
+      assert(mb == _mb) -- Integrity check
+
+      if err_mb then
+        item.value = "!ERR"
+        trace("Failed: mode, device.ip, device.uid, item.addr, error code:", mode, device.ip, device.uid, item.addr, err_mb)
+      end
+
+      if data_mb then
+        if mode == 'read' then
+          -- rcoil and rholding return data.
+          -- data is a table with value(s)
+          item.value = data_mb[1]
+
+        elseif mode == 'write' then
+          -- wcoil and wholding return true if it's ok
+          -- item.value, doesn't change, but apply initial check
+          item.value = value
+        end
+
+        trace("Modbus: mode, device.ip, device.uid, item.addr, value:", mode, device.ip, device.uid, item.addr, item.value)
+      end
+
+      -- decrement the queue of items count
+      -- and when empty, check the rest of other pending devices
+      local rest = 0
+      queue[idDev] = queue[idDev] - 1
+
+      if queue[idDev] == 0 then
+        for _, v in ipairs(queue) do
+          rest = rest + v
+        end
+      end
+
+      if rest == 0 then
+        -- if there isn't remaining job, return for flush json data
+        mb:close() -- Close connection
+        return data
+      end
+
+    end   -- function mycallback
+
+
+    if mb then
+      if mode == 'read' then
+        if vtype == 'bit' then
+          -- read coil(s) function code 1
+          transaction = mb:rcoil(addr, size, mycallback) -- Initiate request
+        else
+          -- read holding register - function code 3
+          transaction = mb:rholding(addr, coils, vtype, mycallback) -- Initiate request
+        end
+
+      elseif mode == 'write' then
+        if vtype == 'bit' then
+          -- Write single coil (function code 5) or write multiple coils (function code 15)
+          transaction = mb:wrcoil(addr, value, mycallback) -- Initiate request
+        else
+          -- Write single register (function code 6) or write multiple registers (function code 16)
+          transaction = mb:wholding(addr, value, vtype, mycallback) -- Initiate request
+        end
+
+      end
+    end
+
+  end   -- function process_modbus_item
+
+
+  -- === MAIN ===
+  -- data is an array of devices, so for each device in devices
+  for i, _ in ipairs(data) do
+    -- pay attention: with "for i, device in ipairs(data) do" device is a copy, for writing use data[i]
+    local device = data[i]
+    queue[i] = #device.items
+    local idDev = i
+
+    for ii, _ in ipairs(device.items) do
+      -- pay attention: with "for i, item in ipairs(items) do" item is a copy, for writing use items[ii]
+      local item = device.items[ii]
+      -- item._idDevice = idDev -- used in callback cbfnmb
+
+      process_modbus_item(device, item, idDev)
+    end
+  end
+
+  -- if still connected
+  if mb then
+    if mb:connected() then
+      mb:close() -- Close connection
+    end
+  end
+
+  -- if not still called
+  return data
+end

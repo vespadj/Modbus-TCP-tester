@@ -1,0 +1,103 @@
+<!doctype html>
+<html>
+<head>
+	<title>Modbus Tester</title>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<!-- link rel="stylesheet" type="text/css" href="latex.css"-->
+	<link rel="stylesheet" href="w3.css">
+	<script src="alpinejs.js" defer></script>
+</head>
+
+<body style="font-size: 8pt;line-height: 1.2;">
+	<div x-data="app">
+		<div class="w3-container w3-teal">
+			<h3>Modbus TCP/IP tester</h3>
+		</div>
+		<div class="w3-container w3-margin-top">
+			<button @click="toggle_reading_in_cycle()" class="w3-button w3-round-large w3-pale-red" :class="{ 'w3-deep-orange': reading_in_cycle , 'w3-pale-red': ! reading_in_cycle }" x-text="reading_in_cycle ? 'Stop!' : 'Read All'" style="width: 7em;"></button><span>
+			</span><span>every</span><span> </span>
+			<input x-model="read_all_cycle_time" type="number" min="2" size="6" /><span>
+			</span><span>seconds</span>
+		</div>
+		<div class="devices w3-container w3-row">
+
+			<template x-for="(device, iddev) in devices" :key="iddev">
+				<div class="device w3-margin-top w3-border-bottom">
+
+					<input x-model="device.ip" placeholder="IP" title="IP, e.g.: 192.168.10.50" />
+					<input x-model="device.port" placeholder="port" title="port. Default: 502" type="number" min="0" size="6" />
+					<input x-model="device.uid" placeholder="uid" title="Modbus unit identifier. 255 if empty" type="number" min="0" max="255" size="5" />
+					<button title="Remove Device" x-bind:iddev="iddev" @click="console.log($event.target); devices.splice(parseInt($event.target.getAttribute('iddev')), 1)" class="w3-button w3-round-large w3-dark-gray w3-tiny">Remove Device</button>
+					<span> </span><span x-text="if(device.hasOwnProperty('online')){ return device.online ? 'online' : 'offline'}else{return ''}"></span>
+					<br />
+
+					
+					<template x-for="(item, index) in device.items" :key="index">
+						<div class="w3-panel w3-border-top w3-section w3-padding-small">
+							<span x-text="index + ': '" class="w3-small w3-text-gray"></span>
+							<input x-model="item.name" placeholder="name" title="Name" />
+							<select x-model="item.r_w" title=" r_w: | R: Read Only | R/W: Read/Write" x-init="item.r_w">
+								<option disabled="disabled"> - </option>
+								<option value="r"  :selected="item.r_w=='r'">R</option>
+								<option value="rw" :selected="item.r_w=='rw'">R/W</option>
+							</select>
+							<input x-model="item.addr" placeholder="mem addr" title="Memory Address" type="number" min="0" size="6" />
+							<select x-model="item.vtype" x-init="item.vtype" placeholder="mem addr" title="Memory Address">
+								<template x-for="type in ['bit', 'word']">
+									<option :value="type" x-text="type" :selected="item.vtype==type"></option>
+								</template>
+			</select>
+			<!-- input x-model="item.size" placeholder="size" type="number" size="4" x-init="item.size=16" min="1" title="size: 1 bit; word 16 bit; etc..." -->
+			<!-- check !!item.processing true when is true or undefined -->
+			<button :disabled="!!item.processing" :index="index" @click="/*console.log('iddev, iditem (/ index)', iddev, index);*/ process_modbus('read', iddev, index)" class="w3-button w3-round-large w3-light-green" title="Read value">R</button>
+			<input :disabled="!!item.processing" x-model="item.value" :readonly="item.r_w=='r'" :class="item.r_w=='r' && 'w3-light-gray'" placeholder="value" title="value" type="text" size="9" />
+			<input x-model="item.comment" placeholder="comment" name="Comment" />
+			<button :disabled="!!item.processing" @click="process_modbus('write', iddev, index)" class="w3-button w3-round-large w3-deep-orange" :class="item.r_w=='rw' || 'w3-hide'" title="Write value">W</button><span> </span>
+			<button title="Remove" x-bind:index="index" @click="device.items.splice(parseInt($event.target.getAttribute('index')), 1)" class="w3-button w3-round-large w3-dark-gray">-</button>
+		</div>
+		</template>
+		<div class="w3-container">
+			<div class=" w3-right"><button @click="device.items.push({})" class="w3-button w3-round-large w3-teal">Add memory address</button></div>
+		</div>
+
+	</div>
+	</template>
+	</div>
+
+	<div class="toolbar w3-container w3-margin-top">
+		<button @click="devices.push({items: [{}]})" class="w3-button w3-round-large w3-teal">Add Device</button>
+		<button class="w3-button w3-round-large w3-pale-blue" style="visibility: hidden;">()</button>
+		<button @click="save()" class="w3-button w3-round-large w3-blue-grey">Save</button>
+		<input x-model="filename" placeholder="file name" type="text" size="40" /><input x-model="file_extension" disabled size="5" />
+	</div>
+	<div class="saved-files w3-container w3-margin-top">
+		<p><b>Saved Files</b></p>
+		<table>
+			<thead>
+				<tr>
+					<th></th>
+					<th>Name</th>
+					<th>Size</th>
+					<th>Date</th>
+				</tr>
+			</thead>
+			<tbody>
+				<template x-for="(file, index) in files" :key="index" x-init="await list_files()">
+				<tr>
+					<td><button :index="file.name" @click="load($event.target.getAttribute('index'))" class="w3-button w3-round-large w3-light-gray w3-tiny">Load</button></td>
+					<td x-text="file.name"></td>
+					<td x-text="file.size + ' byte'"></td>
+					<td x-text="let d = new Date(file.mtime); return d.toLocaleString('it-IT')"></td>
+				</tr>
+			</template>
+			</tbody>
+		</table>
+	</div>
+	<p></p>
+	</div>
+	<!-- app -->
+	<script src="app.js"></script>
+</body>
+
+</html>
