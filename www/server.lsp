@@ -1,4 +1,5 @@
 <?lsp
+
 -- main function as app.process_request() are defined in .preload file
 
 -- trace("request of server.lsp") -- console.log
@@ -42,6 +43,7 @@ if action == "process_request" then
   local devices = ba.json.decode(jsonstring)
 
   local newdata = app.process_request(mode, devices)
+
   response:json(newdata)
 
 

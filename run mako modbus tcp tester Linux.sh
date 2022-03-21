@@ -1,3 +1,3 @@
 #!/bin/bash
 
-../../../Mako\ server/mako -l::www
+../../../Mako\ Server/mako -l::www

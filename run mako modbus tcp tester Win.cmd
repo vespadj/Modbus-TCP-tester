@@ -1,3 +1,3 @@
 
 
-"D:\SDK\MakoServer\mako.exe" -l::"/www"
+"..\Mako Server\mako.exe" -l::"/www"

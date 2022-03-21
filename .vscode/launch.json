@@ -1,0 +1,32 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "attach",
+            "type": "lua",
+            "request": "attach",
+            "stopOnEntry": true,
+            "address": "127.0.0.1:4711",
+            "client":true,
+            "luaVersion": "5.3"
+            
+
+            /*
+              You do not need to configure "sourceMaps" when the
+              server and debugger run on the same computer. The
+              following example shows how to map the NET IO.
+            */
+
+/*
+            "sourceMaps": [
+                [
+                    "c:\\LSP-Examples\\Lua-Debug\\www\\",
+                    "http://127.0.0.1:80/fs/www/"
+                ]
+    	    ]
+*/
+
+
+         }
+    ]
+}

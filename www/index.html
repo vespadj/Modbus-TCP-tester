@@ -1,5 +1,6 @@
 <!doctype html>
 <html>
+
 <head>
 	<title>Modbus Tester</title>
 	<meta charset="UTF-8">
@@ -35,7 +36,7 @@
 					
 					<template x-for="(item, index) in device.items" :key="index">
 						<div class="w3-panel w3-border-top w3-section w3-padding-small">
-							<span x-text="index + ': '" class="w3-small w3-text-gray"></span>
+							<span x-text="('0' + index).slice(-2) + ': '" class="w3-small w3-text-gray"></span>
 							<input x-model="item.name" placeholder="name" title="Name" />
 							<select x-model="item.r_w" title=" r_w: | R: Read Only | R/W: Read/Write" x-init="item.r_w">
 								<option disabled="disabled"> - </option>
@@ -44,7 +45,7 @@
 							</select>
 							<input x-model="item.addr" placeholder="mem addr" title="Memory Address" type="number" min="0" size="6" />
 							<select x-model="item.vtype" x-init="item.vtype" placeholder="mem addr" title="Memory Address">
-								<template x-for="type in ['bit', 'word']">
+								<template x-for="type in ['bit', 'word', 'dword']">
 									<option :value="type" x-text="type" :selected="item.vtype==type"></option>
 								</template>
 			</select>

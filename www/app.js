@@ -213,4 +213,17 @@ document.addEventListener('alpine:init', () => {
 
 
 	}))
-})
+});
+
+function swap_dword(num) {
+	// swap a doble word
+	// 32 bit: 16;16 :
+	// if device returns Lo;Hi
+	// swap words to Hi;Lo
+	const mask = 2 ** 32 - 1; // a binary number of 32 bit setted to 1 (true)
+	// (((2**31-1)*2) + 1 ) // probably on 32 bit OS
+
+	const hi_word = nn & (2 ** 16 - 1); // from actual Lo
+	const lo_word = nn >> 16; // from actual Hi
+	return mask & ((hi_word << 16) | lo_word);
+}
