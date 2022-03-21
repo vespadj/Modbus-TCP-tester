@@ -1,24 +1,15 @@
 -- Modbus TCP tester - server side
 
 -- === for lint in VS Codium,
--- -- actual nb of lint warning: 4
+-- -- actual nb of lint warning: 7
 -- -- comment before realise:
 -- local trace = function(...) print(arg) end
 
--- https://realtimelogic.com/ba/doc/?url=Modbus.html
-local mbmodule = require "modbus.client"
-
-local mb, err_conn -- The Modbus instance
-local transaction -- last sent transaction number
-
-local curr_conn = ""
 
 -- sample data: array of devices [{...}, {...}]
 --    device:
 --    [{ip: '192.168.1.100', port: '502', uid: '255', items: [{...}, {...}]}
---       item: {addr: '111', size: '1', vtype:'word', value:'to write or result', _idDevice: 1}
---
--- _idDevice is an internal facilities for the callback function
+--       item: {addr: '111', size: '1', vtype:'word', value:'to write or result'}
 
 
 --[=[
@@ -41,8 +32,16 @@ local curr_conn = ""
 
 
 function process_request(mode, data)
-  -- count queue for each device
-  local queue = {}
+  trace ("Hello from process_request")
+
+  -- https://realtimelogic.com/ba/doc/?url=Modbus.html
+  local mbmodule = require "modbus.client"
+  local mb, err_conn -- The Modbus instance
+  local data_mb, err_mb -- the Modbus transaction result
+
+  local curr_conn = ""
+
+  local queue = {}  -- count queue for each device
 
   if not mode or mode == "" then
     mode = "read" -- 'read' or 'write'
@@ -69,14 +68,14 @@ function process_request(mode, data)
     if mode == 'write' then
       if vtype == 'bit' then
         if not value or value == "" then value = false end
-      elseif vtype == 'word' then
+      elseif vtype == 'word' or vtype == 'dword' then
         if not value or value == "" then value = 0 end
       end
     end
 
-    local coils = size // 16 -- TODO!: check!!!
+    local coils = 1 -- size // 16 or 1 -- TODO!: check!!!
 
-    local new_conn = device.ip .. '_' .. device.port .. '_' .. device.uid
+    local new_conn = ip .. '_' .. port .. '_' .. uid
 
     if not (new_conn == curr_conn) and mb then
       if mb:connected() then
@@ -86,10 +85,15 @@ function process_request(mode, data)
 
     if not (new_conn == curr_conn) and ( not mb or not mb:connected() )
     then
-      trace("connecting: ", ip, port, uid)
-      -- TODO!: check if async must be true or false
-      mb, err_conn = mbmodule.connect(ip, {async=false, port=port, uid=uid})
-
+      local timeout = 3000 -- millisecond, default 3 s
+      trace("Connecting: ", ip, port, uid, "timeout (s):", timeout*0.001 )
+      -- async must be false for return all results to json
+      -- !!! when async is false, callback funtion is ignored!!!
+      -- and rcoil() return result or err
+      -- transaction, err_tr = mb:rcoil(0, 5)
+      mb, err_conn = mbmodule.connect(ip, {async=false, port=port, uid=uid, timeout=timeout})
+      -- timeout in ms, default 3 s
+      trace("mb, err_conn:", mb, err_conn )
       if err_conn then
         trace("err_conn: ", err_conn, ip, port, uid)
         device.online = false
@@ -102,15 +106,33 @@ function process_request(mode, data)
       curr_conn = new_conn
     end
 
-    -- Callback function Modbus
-    -- defined inside process_modbus_item function, let's access to its local variable
-    local function mycallback(data_mb, err_mb, _transaction, _mb)
-      assert(transaction == _transaction) -- integrity check
-      assert(mb == _mb) -- Integrity check
+
+    if mb then
+      -- !!! Difference than the SDK example: when async=false , mycallback is ignored!
+      if mode == 'read' then
+        if vtype == 'bit' then
+          -- read coil(s) function code 1
+          data_mb, err_mb = mb:rcoil(addr, size)
+        else
+          -- read holding register - function code 3
+          trace("mb:rholding", addr, coils, vtype)
+          data_mb, err_mb = mb:rholding(addr, coils, vtype)
+        end
+
+      elseif mode == 'write' then
+        if vtype == 'bit' then
+          -- Write single coil (function code 5) or write multiple coils (function code 15)
+          data_mb, err_mb = mb:wrcoil(addr, value)
+        else
+          -- Write single register (function code 6) or write multiple registers (function code 16)
+          data_mb, err_mb = mb:wholding(addr, value, vtype)
+        end
+
+      end
 
       if err_mb then
         item.value = "!ERR"
-        trace("Failed: mode, device.ip, device.uid, item.addr, error code:", mode, device.ip, device.uid, item.addr, err_mb)
+        trace("Failed: mode, ip, uid, addr, error code:", mode, ip, uid, addr, err_mb)
       end
 
       if data_mb then
@@ -118,14 +140,13 @@ function process_request(mode, data)
           -- rcoil and rholding return data.
           -- data is a table with value(s)
           item.value = data_mb[1]
-
         elseif mode == 'write' then
           -- wcoil and wholding return true if it's ok
           -- item.value, doesn't change, but apply initial check
           item.value = value
         end
 
-        trace("Modbus: mode, device.ip, device.uid, item.addr, value:", mode, device.ip, device.uid, item.addr, item.value)
+        trace("Modbus: mode, ip, uid, addr, value:", mode, ip, uid, addr, item.value)
       end
 
       -- decrement the queue of items count
@@ -145,30 +166,8 @@ function process_request(mode, data)
         return data
       end
 
-    end   -- function mycallback
 
-
-    if mb then
-      if mode == 'read' then
-        if vtype == 'bit' then
-          -- read coil(s) function code 1
-          transaction = mb:rcoil(addr, size, mycallback) -- Initiate request
-        else
-          -- read holding register - function code 3
-          transaction = mb:rholding(addr, coils, vtype, mycallback) -- Initiate request
-        end
-
-      elseif mode == 'write' then
-        if vtype == 'bit' then
-          -- Write single coil (function code 5) or write multiple coils (function code 15)
-          transaction = mb:wrcoil(addr, value, mycallback) -- Initiate request
-        else
-          -- Write single register (function code 6) or write multiple registers (function code 16)
-          transaction = mb:wholding(addr, value, vtype, mycallback) -- Initiate request
-        end
-
-      end
-    end
+    end -- if mb
 
   end   -- function process_modbus_item
 
@@ -200,3 +199,44 @@ function process_request(mode, data)
   -- if not still called
   return data
 end
+
+
+
+--[=[ -- TODO
+  -- === https://github.com/RealTimeLogic/LSP-Examples/tree/master/Lua-Debug
+
+-- This function freezes (blocks) the server until a debugger connects
+-- to the listening port 4711
+local function waitForDebugger()
+
+  -- Load the Lua Debug Monitor "ldbgmon" and call the connect() method
+  -- client=false -> bind (act as server). Default is to act as client.
+  if require"ldbgmon".connect{client=false} then
+
+     trace"The debugger should stop the program on this line"
+
+     --Step into the following function by pressing F11. Make sure
+     -- to read the comments in the file, starting at the top of the file.
+     mc.run()
+
+  else
+     trace"Debugger connection failed"
+  end
+
+end -- waitForDebugger
+
+-- You may directly call waitForDebugger() and block the Mako Server
+-- when starting this app. You will then be able to inspect the Mako
+-- Server's internal code in mako.zip and "Step Out" and into the Mako
+-- Server's internal Lua code. Alternatively comment out the first
+-- code line below and enable the second code line. Mako Server will
+-- then complete the loading of this app before halting execution.
+-- The third code line below provides a start option that gives you
+-- time to click the Restart -> Disconnect button in the debugger. See
+-- the section Gotchas in the example's GitHub documentation.
+
+--waitForDebugger()
+ba.thread.run(waitForDebugger)
+ba.timer(waitForDebugger):set(5000,true)
+
+]=]
