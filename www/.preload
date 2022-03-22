@@ -40,13 +40,11 @@ function process_request(mode, data)
 
   local curr_conn = ""
 
-  local queue = {}  -- count queue for each device
-
   if not mode or mode == "" then
     mode = "read" -- 'read' or 'write'
   end
 
-  local function process_modbus_item(device, item, idDev)
+  local function process_modbus_item(device, item)
     local ip = device.ip
     local port = device.port
     local uid = device.uid
@@ -78,11 +76,12 @@ function process_request(mode, data)
 
     if not (new_conn == curr_conn) and mb then
       if mb:connected() then
+        trace("Close old connection")
         mb:close()
       end
     end
 
-    if ( not mb or not mb:connected() ) then
+    if not ( mb and mb:connected() ) then
       local timeout = 3000 -- millisecond, default 3 s
       trace("Connecting: ", ip, port, uid, "timeout (s):", timeout*0.001 )
       -- async must be false for return all results to json
@@ -149,24 +148,6 @@ function process_request(mode, data)
         trace("Modbus: mode, ip, uid, addr, value:", mode, ip, uid, addr, item.value)
       end
 
-      -- decrement the queue of items count
-      -- and when empty, check the rest of other pending devices
-      local rest = 0
-      queue[idDev] = queue[idDev] - 1
-
-      if queue[idDev] == 0 then
-        for _, v in ipairs(queue) do
-          rest = rest + v
-        end
-        if rest == 0 then
-          -- if there isn't remaining job, return for flush json data
-          trace("Close connection")
-          mb:close() -- Close connection
-          return data
-        end
-      end
-
-
     end -- if mb
 
   end   -- function process_modbus_item
@@ -175,17 +156,15 @@ function process_request(mode, data)
   -- === MAIN ===
   -- data is an array of devices, so for each device in devices
   for i, _ in ipairs(data) do
-    -- pay attention: with "for i, device in ipairs(data) do" device is a copy, for writing use data[i]
-    local device = data[i]
-    queue[i] = #device.items
-    local idDev = i
+
+    local device = data[i]  -- pay attention: with "for i, device in ipairs(data) do" device is a copy, for writing use data[i]
 
     for ii, _ in ipairs(device.items) do
-      -- pay attention: with "for i, item in ipairs(items) do" item is a copy, for writing use items[ii]
-      local item = device.items[ii]
-      -- item._idDevice = idDev -- used in callback cbfnmb
 
-      process_modbus_item(device, item, idDev)
+      local item = device.items[ii]  -- pay attention: with "for i, item in ipairs(items) do" item is a copy, for writing use items[ii]
+
+      process_modbus_item(device, item)
+
     end
   end
 
@@ -196,7 +175,7 @@ function process_request(mode, data)
     end
   end
 
-  -- if not still called
+  -- return the new data
   return data
 end
 
