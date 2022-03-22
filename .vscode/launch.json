@@ -8,7 +8,7 @@
             "stopOnEntry": true,
             "address": "127.0.0.1:4711",
             "client":true,
-            "luaVersion": "5.3"
+            // "luaVersion": "5.4"
             
 
             /*
