@@ -37,7 +37,6 @@ function process_request(mode, data)
   -- https://realtimelogic.com/ba/doc/?url=Modbus.html
   local mbmodule = require "modbus.client"
   local mb, err_conn -- The Modbus instance
-  local data_mb, err_mb -- the Modbus transaction result
 
   local curr_conn = ""
 
@@ -83,8 +82,7 @@ function process_request(mode, data)
       end
     end
 
-    if not (new_conn == curr_conn) and ( not mb or not mb:connected() )
-    then
+    if ( not mb or not mb:connected() ) then
       local timeout = 3000 -- millisecond, default 3 s
       trace("Connecting: ", ip, port, uid, "timeout (s):", timeout*0.001 )
       -- async must be false for return all results to json
@@ -109,13 +107,14 @@ function process_request(mode, data)
 
     if mb then
       -- !!! Difference than the SDK example: when async=false , mycallback is ignored!
+      local data_mb, err_mb -- the Modbus transaction result
       if mode == 'read' then
         if vtype == 'bit' then
           -- read coil(s) function code 1
           data_mb, err_mb = mb:rcoil(addr, size)
         else
           -- read holding register - function code 3
-          trace("mb:rholding", addr, coils, vtype)
+          --trace("mb:rholding", addr, coils, vtype)
           data_mb, err_mb = mb:rholding(addr, coils, vtype)
         end
 
@@ -133,6 +132,7 @@ function process_request(mode, data)
       if err_mb then
         item.value = "!ERR"
         trace("Failed: mode, ip, uid, addr, error code:", mode, ip, uid, addr, err_mb)
+        -- if err_mb == 'socketwritefailed' then mb is not connected , check where mb:close() is called
       end
 
       if data_mb then
@@ -158,12 +158,12 @@ function process_request(mode, data)
         for _, v in ipairs(queue) do
           rest = rest + v
         end
-      end
-
-      if rest == 0 then
-        -- if there isn't remaining job, return for flush json data
-        mb:close() -- Close connection
-        return data
+        if rest == 0 then
+          -- if there isn't remaining job, return for flush json data
+          trace("Close connection")
+          mb:close() -- Close connection
+          return data
+        end
       end
 
 

@@ -60,4 +60,6 @@ end
 
 response:write(res)
 
+mb:close()
+
 ?>
