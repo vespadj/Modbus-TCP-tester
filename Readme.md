@@ -30,10 +30,11 @@ During the process, a sub-set of this object is sended and returned from the web
 
 Structure of the sub-set json data exchanged with the server.
 
-```json
+```
 // sample data: array of devices [{...}, {...}]
 //   device:
       {ip: '192.168.1.100', port: '502', uid: '255', items: [{...}, {...}]}
+
         item: {addr: '111', size: '1', vtype:'word', value:'to write or result'}
 ```
 An `item` is a map to the address memory.
