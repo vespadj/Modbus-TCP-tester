@@ -20,6 +20,7 @@ After "run mako" and open then main web page, click on `Load` at bottom to load 
 - [Mako Server](https://makoserver.net/): web server and its [Modbus TCP library](https://realtimelogic.com/ba/doc/?url=Modbus.html)
 - [Alpine.js](https://alpinejs.dev/)
 - [w3.css](https://www.w3schools.com/w3css/w3css_references.asp)
+- [Material Design icons](https://materialdesignicons.com/)
 - json file format
 - `https` should be implemented in Mako
 

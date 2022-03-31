@@ -1,7 +1,7 @@
 -- Modbus TCP tester - server side
 
 -- === for lint in VS Codium,
--- -- actual nb of lint warning: 7
+-- -- actual nb of lint warning: 6
 -- -- comment before realise:
 -- local trace = function(...) print(arg) end
 
@@ -64,35 +64,44 @@ function process_request(mode, data)
 
     if mode == 'write' then
       if vtype == 'bit' then
-        if not value or value == "" then value = false end
+        -- in case of multiple coils, re-write code here. use string? 0001 1111 0101 ?
+        if not value or value == "" or value == "false" or value == "0" then
+          value = false
+        else
+          value = true
+        end
       elseif vtype == 'word' or vtype == 'dword' then
         if not value or value == "" then value = 0 end
       end
     end
 
-    local coils = 1 -- size // 16 or 1 -- TODO!: check!!!
+    local len = 1 -- size // 16 or 1 -- TODO!: check!!!
 
     local new_conn = ip .. '_' .. port .. '_' .. uid
 
     if not (new_conn == curr_conn) and mb then
-      if mb:connected() then
+      if not mb.closed then -- means not 'terminated'
+        -- mb:connected() probably is used in asych=true mode
+        -- trace(mb:connected()) -- returns false 'notcon', so mb.closed is simpler
         trace("Close old connection")
         mb:close()
+        -- trace(mb:connected()) -- returns false 'terminated', so mb.closed is simpler
       end
     end
 
-    if not ( mb and mb:connected() ) then
+    if not mb or (mb.closed == true) then
+      -- mb.closed means terminated values: true (after mb:close()) ; nil (at init)
       local timeout = 3000 -- millisecond, default 3 s
-      trace("Connecting: ", ip, port, uid, "timeout (s):", timeout*0.001 )
+      trace("Connecting to ip_port_uid: ", new_conn, "timeout (s):", timeout*0.001 )
       -- async must be false for return all results to json
       -- !!! when async is false, callback funtion is ignored!!!
       -- and rcoil() return result or err
       -- transaction, err_tr = mb:rcoil(0, 5)
       mb, err_conn = mbmodule.connect(ip, {async=false, port=port, uid=uid, timeout=timeout})
       -- timeout in ms, default 3 s
-      trace("mb, err_conn:", mb, err_conn )
+      -- trace("mb, err_conn:", mb, err_conn )
       if err_conn then
-        trace("err_conn: ", err_conn, ip, port, uid)
+        trace("err_conn to ip_port_uid: ", new_conn, err_conn)
         device.online = false
       end
 
@@ -113,14 +122,16 @@ function process_request(mode, data)
           data_mb, err_mb = mb:rcoil(addr, size)
         else
           -- read holding register - function code 3
-          --trace("mb:rholding", addr, coils, vtype)
-          data_mb, err_mb = mb:rholding(addr, coils, vtype)
+          --trace("mb:rholding", addr, len, vtype)
+          data_mb, err_mb = mb:rholding(addr, len, vtype)
         end
 
       elseif mode == 'write' then
         if vtype == 'bit' then
           -- Write single coil (function code 5) or write multiple coils (function code 15)
-          data_mb, err_mb = mb:wrcoil(addr, value)
+          -- value must be a table (array) of booleans. {true} for a single coil [non correct on SDK]
+          -- For mulpiple coils re-write code here and above
+          data_mb, err_mb = mb:wcoil(addr, {value})
         else
           -- Write single register (function code 6) or write multiple registers (function code 16)
           data_mb, err_mb = mb:wholding(addr, value, vtype)
@@ -168,11 +179,9 @@ function process_request(mode, data)
     end
   end
 
-  -- if still connected
+  -- if still connected, if just closed doen't raise error
   if mb then
-    if mb:connected() then
-      mb:close() -- Close connection
-    end
+    mb:close() -- Close connection
   end
 
   -- return the new data

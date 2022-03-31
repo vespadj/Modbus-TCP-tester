@@ -6,7 +6,8 @@
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<!-- link rel="stylesheet" type="text/css" href="latex.css"-->
-	<link rel="stylesheet" href="w3.css">
+	<link rel="stylesheet" href="css/w3.css">
+
 	<script src="alpinejs.js" defer></script>
 </head>
 
@@ -38,14 +39,14 @@
 						<div class="w3-panel w3-border-top w3-section w3-padding-small">
 							<span x-text="('0' + index).slice(-2) + ': '" class="w3-small w3-text-gray"></span>
 							<input x-model="item.name" placeholder="name" title="Name" />
-							<select x-model="item.r_w" title=" r_w: | R: Read Only | R/W: Read/Write" x-init="item.r_w">
+							<select x-model="item.r_w" title=" r_w: | R: Read Only | R/W: Read/Write" zzz-init="item.r_w">
 								<option disabled="disabled"> - </option>
-								<option value="r"  :selected="item.r_w=='r'">R</option>
-								<option value="rw" :selected="item.r_w=='rw'">R/W</option>
+								<option value="r"  :selected="item.r_w === 'r'">R</option>
+								<option value="rw" :selected="item.r_w === 'rw'">R/W</option>
 							</select>
 							<input x-model="item.addr" placeholder="mem addr" title="Memory Address" type="number" min="0" size="6" />
-							<select x-model="item.vtype" x-init="item.vtype" placeholder="mem addr" title="Memory Address">
-								<template x-for="type in ['bit', 'word', 'dword']">
+							<select x-model="item.vtype" zzz-init="item.vtype" placeholder="mem addr" title="Memory Address">
+								<template x-for="type in ['bit', 'word', 'dword']" :key="type">
 									<option :value="type" x-text="type" :selected="item.vtype==type"></option>
 								</template>
 			</select>
@@ -54,7 +55,19 @@
 			<button :disabled="!!item.processing" :index="index" @click="/*console.log('iddev, iditem (/ index)', iddev, index);*/ process_modbus('read', iddev, index)" class="w3-button w3-round-large w3-light-green" title="Read value">R</button>
 			<input :disabled="!!item.processing" x-model="item.value" :readonly="item.r_w=='r'" :class="item.r_w=='r' && 'w3-light-gray'" placeholder="value" title="value" type="text" size="9" />
 			<input x-model="item.comment" placeholder="comment" name="Comment" />
-			<button :disabled="!!item.processing" @click="process_modbus('write', iddev, index)" class="w3-button w3-round-large w3-deep-orange" :class="item.r_w=='rw' || 'w3-hide'" title="Write value">W</button><span> </span>
+			<button x-show="item.r_w==='rw' && item.vtype!=='bit'" :disabled="!!item.processing" @click="process_modbus('write', iddev, index)" class="w3-button w3-round-large w3-deep-orange" :class="item.r_w=='rw' || 'w3-hide'" title="Write value">W</button>
+
+			<span x-show="item.vtype==='bit'" :style="item.value ? 'fill: #2196F3 !important' : 'fill: #757575 !important'">
+				<svg viewBox="0 0 24 24" x-show="item.r_w==='r'" style="height: 16pt;"><path x-bind:d="item.value ? mdiLightbulbOn : mdiLightbulbOff" /></svg>
+				<svg viewBox="0 0 24 24" x-show="item.r_w==='rw'" style="rotate: -90deg;height: 16pt;"><path x-bind:d="item.value ? mdiElectricSwitchClosed : mdiElectricSwitch" /></svg>
+			</span>
+			<span x-show="item.r_w==='rw' && item.vtype==='bit'">
+				<button :disabled="!!item.processing" @click="item.value=true; process_modbus('write', iddev, index)" class="w3-button w3-round-large w3-deep-orange" :class="item.r_w=='rw' || 'w3-hide'" title="Write ON">Set ON</button>
+				<button :disabled="!!item.processing" @click="item.value=false; process_modbus('write', iddev, index)" class="w3-button w3-round-large w3-deep-orange" :class="item.r_w=='rw' || 'w3-hide'" title="Write OFF">Set OFF</button>
+				<button :disabled="!!item.processing" x-on:mousedown="item.value=true; process_modbus('write', iddev, index)" x-on:mouseup.debounce.200ms = "item.value=false; process_modbus('write', iddev, index)" class="w3-button w3-round-large w3-deep-orange" :class="item.r_w=='rw' || 'w3-hide'" title="Write ON (mousedown) and OFF (mouseup). Please don't drag mouse!">Tap!</button>
+
+			</span>
+			<span> </span>
 			<button title="Remove" x-bind:index="index" @click="device.items.splice(parseInt($event.target.getAttribute('index')), 1)" class="w3-button w3-round-large w3-dark-gray">-</button>
 		</div>
 		</template>

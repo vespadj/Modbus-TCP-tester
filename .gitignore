@@ -1,3 +1,4 @@
+www/@mdi
 www/saved_files/*.json
 !www/saved_files/test1.json
 sync.ffs_db
