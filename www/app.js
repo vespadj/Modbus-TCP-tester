@@ -179,6 +179,7 @@ document.addEventListener('alpine:init', () => {
 				delete device.online;
 				device.items.forEach(element => {
 					delete element.processing;
+					delete element.value;
 				});
 				return device;
 			});

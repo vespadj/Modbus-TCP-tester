@@ -57,7 +57,7 @@
 			<input x-model="item.comment" placeholder="comment" name="Comment" />
 			<button x-show="item.r_w==='rw' && item.vtype!=='bit'" :disabled="!!item.processing" @click="process_modbus('write', iddev, index)" class="w3-button w3-round-large w3-deep-orange" :class="item.r_w=='rw' || 'w3-hide'" title="Write value">W</button>
 
-			<span x-show="item.vtype==='bit'" :style="item.value ? 'fill: #2196F3 !important' : 'fill: #757575 !important'">
+			<span x-show="item.vtype==='bit'" :style="item.value ? {fill: '#2196F3'} : {fill: '#757575'}">
 				<svg viewBox="0 0 24 24" x-show="item.r_w==='r'" style="height: 16pt;"><path x-bind:d="item.value ? mdiLightbulbOn : mdiLightbulbOff" /></svg>
 				<svg viewBox="0 0 24 24" x-show="item.r_w==='rw'" style="rotate: -90deg;height: 16pt;"><path x-bind:d="item.value ? mdiElectricSwitchClosed : mdiElectricSwitch" /></svg>
 			</span>
