@@ -30,6 +30,11 @@
 ]=]
 
 
+--WFS or Mako Server
+local fmt = string.format
+local serverport = (ba and ba.serverport) or (mako and mako.port)
+
+print(fmt("\n\n Please open: http://localhost:%d \n\n",serverport))
 
 function process_request(mode, data)
   trace ("Hello from process_request")

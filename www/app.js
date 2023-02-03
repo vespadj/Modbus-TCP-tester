@@ -26,6 +26,8 @@ function refresh(period_val) {
 document.addEventListener('alpine:init', () => {
 	Alpine.data('app', () => ({
 
+		editMode: true,
+
 		reading_in_cycle: false,
 
 		read_all_cycle_time: 10, // seconds
