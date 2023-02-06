@@ -88,7 +88,7 @@
                 <input
                   x-model="item.name"
                   placeholder="name"
-                  title="Name"
+                  :title="'Name: ' + item.name"
                   :disabled="!editMode"
                 />
                 <select
@@ -154,6 +154,7 @@
                   placeholder="comment"
                   name="Comment"
                   :disabled="!editMode"
+                  :title="item.comment"
                 />
                 <button
                   x-show="item.r_w==='rw' && item.vtype!=='bit'"
