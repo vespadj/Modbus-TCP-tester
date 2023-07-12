@@ -1,3 +1,4 @@
 #!/bin/bash
 
-../../../Mako\ Server/mako -l::www -lstartbrowser::"start-browser.zip"
+# Path to Mako Server
+../mako/mako -l::www -lstartbrowser::"start-browser.zip"
